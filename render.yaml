@@ -1,0 +1,27 @@
+services:
+  - type: web # Loại dịch vụ là web service
+    name: fastapi-image-classifier # Đặt tên cho dịch vụ của bạn
+    env: python # Môi trường thực thi là Python
+    plan: free # Sử dụng gói miễn phí của Render (có giới hạn tài nguyên)
+    region: singapore # Chọn khu vực gần bạn hoặc người dùng của bạn (ví dụ: singapore, frankfurt, ohio, oregon)
+    branch: main # Nhánh Git chính của bạn (hoặc master)
+
+    healthCheckPath: /health # Render sẽ ping đường dẫn này để kiểm tra ứng dụng có hoạt động không
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.10" # Chỉ định phiên bản Python Render nên sử dụng (ví dụ: 3.8, 3.9, 3.10, 3.11)
+      # - key: MODEL_PATH # Ví dụ nếu bạn muốn cấu hình đường dẫn model qua biến môi trường
+      #   value: './best_multitask_model_generic_last.pth'
+      # Bạn có thể thêm các biến môi trường khác ở đây nếu cần
+
+    buildCommand: "pip install --no-cache-dir -r requirements.txt" # Lệnh để Render cài đặt dependencies
+
+    startCommand: "gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT --timeout 120"
+    # - app.main:app : Trỏ đến instance `app` trong file `app/main.py`
+    # - --bind 0.0.0.0:$PORT : Gunicorn lắng nghe trên port mà Render cung cấp
+    # - --timeout 120 : Tăng thời gian timeout cho worker lên 120 giây (mặc định 30s),
+    #                   hữu ích nếu model của bạn cần thời gian để xử lý request.
+    #                   Kiểm tra giới hạn của Render cho request timeout.
+
+    # autoDeploy: true # Mặc định là true, tự động deploy khi có commit mới lên nhánh đã chọn
