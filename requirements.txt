@@ -9,3 +9,4 @@ Pillow
 numpy
 scikit-learn
 pillow-heif 
+python-multipart
