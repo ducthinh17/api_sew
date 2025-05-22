@@ -126,7 +126,7 @@ def full_process_image(original_image_path: str, target_size_tuple=(224, 224), h
         return None
 
 # 3. Định nghĩa `config` và `UPLOAD_DIR`
-MODEL_PATH_SERVER = os.getenv("MODEL_PATH", "best_multitask_model_generic_last.pth")
+MODEL_PATH_SERVER = os.getenv("MODEL_PATH", "./best_multitask_model_generic_last.pth")
 UPLOAD_DIR        = "/tmp/image_uploads" # Thư mục tạm trên Render
 
 config = {
