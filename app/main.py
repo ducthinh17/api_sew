@@ -366,9 +366,9 @@ async def predict_image(file: UploadFile = File(...)):
             # === KIỂM TRA CONFIDENCE ===
             # Chỉ kiểm tra cho 'category', 'sub_category', 'orientation'
             if task_name in ['category', 'sub_category', 'orientation']:
-                if (conf_val * 100) < 90.0:
+                if (conf_val * 100) < 65.0:
                     meets_criteria = False
-                    print(f"INFO: Task '{task_name}' failed confidence check: {conf_val*100:.1f}% < 90%")
+                    print(f"INFO: Task '{task_name}' failed confidence check: {conf_val*100:.1f}% < 65%")
             # 'level' không cần kiểm tra
 
             predicted_labels_details[task_name] = PredictionDetail(
@@ -379,7 +379,7 @@ async def predict_image(file: UploadFile = File(...)):
         if not meets_criteria:
             # Nếu có bất kỳ task quan trọng nào không đạt, trả về lỗi 400
             print(f"INFO: Image '{original_filename}' did not meet the 90% confidence criteria.")
-            raise HTTPException(status_code=400, detail="Ảnh không phù hợp với tiêu chí (confidence < 90%).")
+            raise HTTPException(status_code=400, detail="Ảnh không phù hợp với tiêu chí (confidence < 65%).")
 
         # Nếu tất cả đều đạt, trả về kết quả bình thường
         return PredictionResponse(filename=original_filename, predictions=predicted_labels_details)
