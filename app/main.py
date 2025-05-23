@@ -38,7 +38,7 @@ import uvicorn
 
 # ==== A. ĐỊNH NGHĨA CÁC THÀNH PHẦN CẦN THIẾT ====
 
-# 1. Định nghĩa Class MultiTaskModel (Không thay đổi đáng kể)
+# 1. Định nghĩa Class MultiTaskModel (Không thay đổi)
 class MultiTaskModel(nn.Module):
     """Model Multi-Task với backbone và các head riêng cho từng task."""
     def __init__(self, backbone_name="efficientnet_b0", pretrained=True, num_classes_per_task_dict=None):
@@ -97,7 +97,7 @@ class MultiTaskModel(nn.Module):
         outputs = {task_name: head(features) for task_name, head in self.heads.items()}
         return outputs
 
-# 2. Định nghĩa hàm full_process_image (Tinh chỉnh HEIC logic)
+# 2. Định nghĩa hàm full_process_image (Không thay đổi)
 def full_process_image(original_image_path: str, target_size_tuple=(224, 224), heic_is_supported_by_server: bool = False):
     try:
         img = None
@@ -125,7 +125,7 @@ def full_process_image(original_image_path: str, target_size_tuple=(224, 224), h
         print(f"ERROR [full_process_image]: Could not process {original_image_path}. Error: {e}")
         return None
 
-# 3. Định nghĩa `config` và `UPLOAD_DIR`
+# 3. Định nghĩa `config` và `UPLOAD_DIR` (Không thay đổi)
 MODEL_PATH_SERVER = os.getenv("MODEL_PATH", "./best_multitask_model_generic_last.pth")
 UPLOAD_DIR        = "/tmp/image_uploads" # Thư mục tạm trên Render
 
@@ -149,24 +149,24 @@ le_sub_category = LabelEncoder(); le_sub_category.fit(['circle', 'cruve', 'line'
 le_level = LabelEncoder(); le_level.fit(['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5']); label_encoder_map_mtl['level'] = le_level
 le_orientation = LabelEncoder(); le_orientation.fit(['back', 'front']); label_encoder_map_mtl['orientation'] = le_orientation
 
-# --- B. CÁC HÀM TIỆN ÍCH ---
+# --- B. CÁC HÀM TIỆN ÍCH --- (Không thay đổi)
 
 def load_trained_model_server(model_path: str, model_class_def: Any, config_for_model: Dict, device_to_load: str):
     print(f"INFO: Attempting to load model from: {model_path} (PWD: {os.getcwd()})")
-    
+
     model = model_class_def(
         backbone_name=config_for_model["mtl_model_name"],
-        pretrained=config_for_model["mtl_pretrained_backbone"], # Sẽ là False nếu weights không được load từ file mà train từ đầu
+        pretrained=config_for_model["mtl_pretrained_backbone"],
         num_classes_per_task_dict=config_for_model["num_classes_per_task"]
     )
     try:
         if not os.path.exists(model_path):
             print(f"ERROR: Model file not found at {model_path}.")
             return None
-        
+
         print(f"INFO: Loading model state_dict from validated path: {model_path}")
         state_dict = torch.load(model_path, map_location=torch.device(device_to_load))
-        model.load_state_dict(state_dict, strict=True) # strict=True là quan trọng
+        model.load_state_dict(state_dict, strict=True)
         print("INFO: Successfully loaded model weights (strict=True).")
     except RuntimeError as e_strict_true:
         print(f"ERROR: Failed to load model weights with strict=True (mismatched keys, etc.). Error: {e_strict_true}")
@@ -174,7 +174,7 @@ def load_trained_model_server(model_path: str, model_class_def: Any, config_for_
     except Exception as e_load:
         print(f"ERROR: An unexpected error occurred while loading the model: {e_load}")
         return None
-    
+
     model.to(device_to_load)
     model.eval()
     return model
@@ -183,14 +183,14 @@ def preprocess_single_image_for_mtl_server(original_image_path: str, target_size
     if ptorch_transforms is None:
         print("ERROR [preprocess_single_image_for_mtl_server]: PyTorch transforms missing.")
         return None
-    
+
     processed_np_array = full_process_image(
-        original_image_path, 
+        original_image_path,
         target_size_tuple=(target_size, target_size),
         heic_is_supported_by_server=heic_is_supported
     )
     if processed_np_array is None: return None
-    
+
     try:
         pil_image = Image.fromarray(processed_np_array)
         img_tensor = ptorch_transforms(pil_image)
@@ -199,28 +199,24 @@ def preprocess_single_image_for_mtl_server(original_image_path: str, target_size
         print(f"ERROR [preprocess_single_image_for_mtl_server]: Image to Tensor or PyTorch transform failed: {e_tf}")
         return None
 
-# ==== GLOBAL APP STATE ====
-# Sử dụng dictionary để quản lý trạng thái của các thành phần chính
+# ==== GLOBAL APP STATE ==== (Không thay đổi)
 app_state: Dict[str, Any] = {
     "inference_model": None,
     "inference_transforms": None,
     "device": 'cuda' if torch.cuda.is_available() else 'cpu',
     "upload_dir_ready": False,
-    "heic_support_active": _HEIC_SUPPORT_PILLOW_INTERNAL # Dùng giá trị đã kiểm tra ở trên
+    "heic_support_active": _HEIC_SUPPORT_PILLOW_INTERNAL
 }
 
-# ==== LIFESPAN EVENTS ====
+# ==== LIFESPAN EVENTS ==== (Không thay đổi)
 @asynccontextmanager
-async def lifespan(app_lifespan_param: FastAPI): # Đổi tên tham số để không trùng app global
-    # Startup
-    global app_state # Sử dụng app_state global
-    
-    # Ghi đè device từ config nếu cần, mặc dù thường sẽ giống nhau
+async def lifespan(app_lifespan_param: FastAPI):
+    global app_state
+
     app_state["device"] = config.get('device', app_state["device"])
     print(f"INFO: Server starting up. Using device: {app_state['device']}")
     print(f"INFO: HEIC Support via Pillow-HEIF: {app_state['heic_support_active']}")
 
-    # 1. Đảm bảo UPLOAD_DIR
     print(f"INFO: Ensuring UPLOAD_DIR ({UPLOAD_DIR}) is ready.")
     try:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -228,13 +224,10 @@ async def lifespan(app_lifespan_param: FastAPI): # Đổi tên tham số để k
             app_state["upload_dir_ready"] = True
             print(f"INFO: UPLOAD_DIR is ready at {UPLOAD_DIR}.")
         else:
-            # app_state["upload_dir_ready"] vẫn là False
             print(f"CRITICAL: UPLOAD_DIR ({UPLOAD_DIR}) was created but is not writable. File uploads will fail.")
     except Exception as e:
-        # app_state["upload_dir_ready"] vẫn là False
         print(f"CRITICAL: Could not create/access UPLOAD_DIR ({UPLOAD_DIR}). Error: {e}. File uploads will fail.")
 
-    # 2. Khởi tạo Transforms
     try:
         app_state["inference_transforms"] = transforms.Compose([
             transforms.ToTensor(),
@@ -243,15 +236,13 @@ async def lifespan(app_lifespan_param: FastAPI): # Đổi tên tham số để k
         print("INFO: Inference transforms created successfully.")
     except Exception as e_init_transforms:
         print(f"CRITICAL ERROR: Could not create inference_transforms: {e_init_transforms}")
-        # app_state["inference_transforms"] vẫn là None
 
-    # 3. Load Model
-    if app_state["inference_transforms"]: # Chỉ load model nếu transforms sẵn sàng (tùy chọn, có thể bỏ if này)
+    if app_state["inference_transforms"]:
         print(f"Attempting to load model. Expected path: {MODEL_PATH_SERVER}")
         loaded_model = load_trained_model_server(
-            MODEL_PATH_SERVER, 
-            MultiTaskModel, 
-            config, 
+            MODEL_PATH_SERVER,
+            MultiTaskModel,
+            config,
             app_state['device']
         )
         if loaded_model:
@@ -261,21 +252,20 @@ async def lifespan(app_lifespan_param: FastAPI): # Đổi tên tham số để k
             print("CRITICAL ERROR: Failed to load the model. Predict endpoint will not function.")
     else:
         print("WARN: Model loading skipped because inference_transforms failed to initialize.")
-    
+
     print("INFO: Application startup actions complete.")
     yield
-    # Shutdown
     print("INFO: Server shutting down.")
 
-# ==== FASTAPI APP ====
+# ==== FASTAPI APP ==== (Không thay đổi)
 app = FastAPI(
     title="Multi-Task Image Classification Server (Render)",
     description="Upload an image for multi-task classification.",
-    version="1.1", # Version bump
+    version="1.2", # Version bump
     lifespan=lifespan
 )
 
-# ==== CORS MIDDLEWARE ====
+# ==== CORS MIDDLEWARE ==== (Không thay đổi)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -294,7 +284,7 @@ class PredictionResponse(BaseModel):
     predictions: Dict[str, PredictionDetail]
     error: Optional[str] = None
 
-# ==== Health Check ====
+# ==== Health Check ==== (Không thay đổi)
 @app.get("/health")
 async def health():
     return {
@@ -306,7 +296,7 @@ async def health():
         "heic_support": app_state["heic_support_active"]
     }
 
-# ==== Prediction Endpoint ====
+# ==== Prediction Endpoint (ĐÃ CẬP NHẬT) ====
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_image(file: UploadFile = File(...)):
     if not app_state.get("inference_model"):
@@ -329,9 +319,7 @@ async def predict_image(file: UploadFile = File(...)):
         if file_extension in (".heic", ".heif") and not app_state["heic_support_active"]:
             msg = f"Cannot process HEIC/HEIF: '{original_filename}'. Server lacks HEIC support."
             print(f"ERROR: {msg}")
-            # Trả về lỗi trong JSON thay vì HTTPException để client có thể xử lý mềm hơn (tùy chọn)
-            # return PredictionResponse(filename=original_filename, predictions={}, error=msg)
-            raise HTTPException(status_code=400, detail=msg) # Hoặc giữ lại HTTPException
+            raise HTTPException(status_code=400, detail=msg)
 
         img_tensor = preprocess_single_image_for_mtl_server(
             temp_image_path,
@@ -341,8 +329,6 @@ async def predict_image(file: UploadFile = File(...)):
         )
 
         if img_tensor is None:
-            # error_msg = f"Failed to preprocess image: {original_filename}"
-            # return PredictionResponse(filename=original_filename, predictions={}, error=error_msg)
             raise HTTPException(status_code=400, detail=f"Failed to preprocess image: {original_filename}")
 
         img_tensor = img_tensor.unsqueeze(0).to(app_state["device"])
@@ -351,29 +337,51 @@ async def predict_image(file: UploadFile = File(...)):
             outputs_dict = app_state["inference_model"](img_tensor)
 
         predicted_labels_details = {}
-        for task_name, logits in outputs_dict.items():
-            if task_name not in label_encoder_map_mtl:
-                idx_val = torch.max(logits, 1)[1].cpu().item()
-                conf_val = torch.max(F.softmax(logits, dim=1), 1)[0].cpu().item()
-                predicted_labels_details[task_name] = PredictionDetail(
-                    label=f"NO_ENCODER_IDX({idx_val})", confidence=f"{conf_val*100:.1f}%"
-                )
-                print(f"WARN: LabelEncoder for task '{task_name}' not found. Displaying index.")
-                continue
+        meets_criteria = True # Cờ để kiểm tra tiêu chí confidence
 
+        for task_name, logits in outputs_dict.items():
             probabilities = F.softmax(logits, dim=1)
             confidence_tensor, predicted_idx_tensor = torch.max(probabilities, 1)
             idx_val = predicted_idx_tensor.cpu().item()
-            conf_val = confidence_tensor.cpu().item()
-            try:
-                label_str = label_encoder_map_mtl[task_name].inverse_transform([idx_val])[0]
-            except Exception as e_le:
-                label_str = f"LABEL_ERR_IDX({idx_val})"
-                print(f"Error decoding label for task {task_name}, index {idx_val}: {e_le}")
+            conf_val = confidence_tensor.cpu().item() # Giá trị confidence dạng float (0-1)
+
+            label_str = f"UNKNOWN_IDX({idx_val})" # Giá trị mặc định
+
+            if task_name not in label_encoder_map_mtl:
+                label_str = f"NO_ENCODER_IDX({idx_val})"
+                print(f"WARN: LabelEncoder for task '{task_name}' not found. Displaying index.")
+                # Nếu task quan trọng thiếu encoder, đánh dấu không đạt
+                if task_name in ['category', 'sub_category', 'orientation']:
+                    meets_criteria = False
+            else:
+                try:
+                    label_str = label_encoder_map_mtl[task_name].inverse_transform([idx_val])[0]
+                except Exception as e_le:
+                    label_str = f"LABEL_ERR_IDX({idx_val})"
+                    print(f"Error decoding label for task {task_name}, index {idx_val}: {e_le}")
+                    # Nếu lỗi decode label của task quan trọng, đánh dấu không đạt
+                    if task_name in ['category', 'sub_category', 'orientation']:
+                        meets_criteria = False
+
+            # === KIỂM TRA CONFIDENCE ===
+            # Chỉ kiểm tra cho 'category', 'sub_category', 'orientation'
+            if task_name in ['category', 'sub_category', 'orientation']:
+                if (conf_val * 100) < 90.0:
+                    meets_criteria = False
+                    print(f"INFO: Task '{task_name}' failed confidence check: {conf_val*100:.1f}% < 90%")
+            # 'level' không cần kiểm tra
 
             predicted_labels_details[task_name] = PredictionDetail(
                 label=label_str, confidence=f"{conf_val*100:.1f}%"
             )
+
+        # === KIỂM TRA CỜ ===
+        if not meets_criteria:
+            # Nếu có bất kỳ task quan trọng nào không đạt, trả về lỗi 400
+            print(f"INFO: Image '{original_filename}' did not meet the 90% confidence criteria.")
+            raise HTTPException(status_code=400, detail="Ảnh không phù hợp với tiêu chí (confidence < 90%).")
+
+        # Nếu tất cả đều đạt, trả về kết quả bình thường
         return PredictionResponse(filename=original_filename, predictions=predicted_labels_details)
 
     except HTTPException: # Re-throw HTTPException để FastAPI xử lý
@@ -382,7 +390,6 @@ async def predict_image(file: UploadFile = File(...)):
         print(f"ERROR: Unexpected error during prediction for {original_filename}: {e}")
         import traceback
         traceback.print_exc()
-        # return PredictionResponse(filename=original_filename, predictions={}, error=f"Internal server error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error processing the image.")
     finally:
         if os.path.exists(temp_image_path):
@@ -391,13 +398,12 @@ async def predict_image(file: UploadFile = File(...)):
             except Exception as e_remove:
                 print(f"WARN: Could not remove temporary file {temp_image_path}: {e_remove}")
 
-# ==== MAIN (Chỉ để chạy local) ====
+# ==== MAIN (Chỉ để chạy local) ==== (Không thay đổi)
 if __name__ == "__main__":
     print("--- Starting Uvicorn server for LOCAL DEVELOPMENT ---")
     local_port = int(os.getenv("PORT", 8001))
     print(f"INFO: Model path for local dev: {MODEL_PATH_SERVER}")
     print(f"INFO: UPLOAD_DIR for local dev: {UPLOAD_DIR} (will be managed by lifespan)")
     print(f"INFO: Initial HEIC support status: {app_state['heic_support_active']}")
-    
-    # Lifespan sẽ tự động chạy khi Uvicorn khởi động app
+
     uvicorn.run(app, host="0.0.0.0", port=local_port, log_level="info")
